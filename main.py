@@ -3,6 +3,7 @@
 import gradio as gr
 import os
 import pandas as pd
+import sqlite3  # Adicionado para verificações de banco
 from datetime import datetime
 
 # Importações dos novos módulos
@@ -21,25 +22,31 @@ from legendas import (
 )
 from legendas_municipios import municipios_alagoas
 
-# --- CORREÇÃO DE CAMINHO ---
-# Garante que o sistema encontre o banco na pasta 'dados' do projeto
+
+# --- CONFIGURAÇÃO DE CAMINHOS DINÂMICOS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Garante que o banco seja criado/procurado na pasta 'dados' relativa a este arquivo
 DB_PATH_FIXED = os.path.join(BASE_DIR, "dados", "cadunico.db")
 
 # Variável global para armazenar os dados da pessoa atualmente pesquisada
 dados_pessoa_global = {}
 
-# Certifique-se de que o banco de dados está criado e populado
+# Certifique-se de que a pasta 'dados' existe
+os.makedirs(os.path.join(BASE_DIR, "dados"), exist_ok=True)
+
+# Inicialização do Banco de Dados
 if not os.path.exists(DB_PATH_FIXED):
     print(f"Banco de dados não encontrado em {DB_PATH_FIXED}. Iniciando criação...")
-    # Se o CSV original não for caminho absoluto, ajustamos também
-    csv_path = ARQUIVO_CSV_ORIGINAL if os.path.isabs(ARQUIVO_CSV_ORIGINAL) else os.path.join(BASE_DIR, ARQUIVO_CSV_ORIGINAL)
+    # Ajusta o caminho do CSV caso ele seja relativo
+    csv_path = ARQUIVO_CSV_ORIGINAL if os.path.isabs(ARQUIVO_CSV_ORIGINAL) else os.path.join(BASE_DIR, "dados", os.path.basename(ARQUIVO_CSV_ORIGINAL))
     criar_tabela_e_importar_dados(csv_path)
 else:
     print(f"Banco de dados encontrado: {DB_PATH_FIXED}")
 
+
 # Obtém a lista de municípios uma vez no início da aplicação
 lista_municipios = obter_municipios()
+
 
 def handle_buscar_cpf(cpf, municipio_selecionado_valor, estado):
     global dados_pessoa_global
@@ -60,6 +67,7 @@ def handle_buscar_cpf(cpf, municipio_selecionado_valor, estado):
             msg += ".</div>"
             return msg, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
 
+        # Armazena os dados completos da pessoa no dicionário global
         dados_pessoa_global = resultado_db_dict.copy()
 
         pessoais = {
@@ -117,9 +125,11 @@ def handle_buscar_cpf(cpf, municipio_selecionado_valor, estado):
         return html_result, gr.update(visible=True), gr.update(visible=False), gr.update(visible=True)
 
     except Exception as e:
-        return f<div class='error'>Ocorreu um erro ao buscar o CPF: {str(e)}</div>", \
+        return f"<div class='error'>Ocorreu um erro ao buscar o CPF: {str(e)}</div>", \
                gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
 
+
+# Interface principal Gradio
 with gr.Blocks(title="Sistema de Consulta Cadastral", css="""
     #login-container { max-width: 500px; margin: 40px auto; padding: 30px; background-color: #2e2e35; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
     #login-btn { background-color: #ff5a1f; color: white; font-weight: bold; padding: 12px 24px; border-radius: 8px; border: none; margin-top: 20px; width: 100%; }
@@ -130,17 +140,19 @@ with gr.Blocks(title="Sistema de Consulta Cadastral", css="""
     #calamidades-btn { background-color: #28a745; color: white; font-weight: bold; padding: 8px 16px; border-radius: 8px; border: none; font-size: 14px; width: auto; }
     #grupo-familiar-btn { background-color: #17a2b8; color: white; font-weight: bold; padding: 10px 20px; border-radius: 8px; border: none; }
     .grid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
-    .card { background-color: #2e2e35; color: white; padding: 16px; border-radius: 12px; flex: 1; min-width: 280px; }
+    .card { background-color: #2e2e35; color: white; padding: 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); flex: 1; min-width: 280px; }
     .card h4 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 6px; }
     .card table { width: 100%; border-collapse: collapse; }
     .card table th, .card table td { padding: 8px; border-bottom: 1px solid #444; }
-    .card table th { text-align: left; color: #ffb87a; }
-    .error { color: #ff4444; font-weight: bold; padding: 10px; background-color: #ffeeee; border-radius: 5px; }
-    .success { color: #00aa00; font-weight: bold; padding: 10px; background-color: #eeffee; border-radius: 5px; }
+    .card table th { text-align: left; font-weight: bold; color: #ffb87a; }
+    .error { color: #ff4444; font-weight: bold; padding: 10px; background-color: #ffeeee; border-radius: 5px; border: 1px solid #ffcccc; }
+    .success { color: #00aa00; font-weight: bold; padding: 10px; background-color: #eeffee; border-radius: 5px; border: 1px solid #ccffcc; }
     .filter-row { background-color: #3a3a42; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
 """) as app:
+    # Estado da aplicação
     estado = gr.State({"autenticado": False, "usuario": "", "nivel_acesso": 0})
 
+    # Tela de login
     with gr.Column(visible=True) as login_col:
         with gr.Column(elem_id="login-container"):
             gr.Markdown("## 🔒 Acesso ao Sistema de Consulta Cadastral")
@@ -149,6 +161,7 @@ with gr.Blocks(title="Sistema de Consulta Cadastral", css="""
             login_btn = gr.Button("Entrar", elem_id="login-btn")
             login_status = gr.HTML()
 
+    # Tela principal (oculta inicialmente)
     with gr.Column(visible=False) as main_col:
         with gr.Row():
             user_info = gr.Markdown("", elem_classes="user-info")
@@ -157,7 +170,7 @@ with gr.Blocks(title="Sistema de Consulta Cadastral", css="""
         gr.Markdown("## 🔍 Consulta de CPF em Base de Dados")
         
         with gr.Row(elem_classes="filter-row"):
-            # CORREÇÃO: allow_custom_value e value='' para evitar erro de Dropdown
+            # Ajuste de Dropdown para evitar erros de validação inicial
             municipio_dropdown = gr.Dropdown(
                 label="Filtrar por Município",
                 choices=lista_municipios,
@@ -195,6 +208,7 @@ with gr.Blocks(title="Sistema de Consulta Cadastral", css="""
         est.update({"autenticado": False, "usuario": "", "nivel_acesso": 0})
         return gr.update(visible=True), gr.update(visible=False), "", ""
 
+    # Eventos da UI
     login_btn.click(fn=realizar_login, inputs=[usuario_input, senha_input, estado], outputs=[login_col, main_col, login_status, user_info])
     logout_btn.click(fn=fazer_logout, inputs=[estado], outputs=[login_col, main_col, login_status, user_info])
     submit_btn.click(fn=handle_buscar_cpf, inputs=[cpf_input, municipio_dropdown, estado], outputs=[resultado_html, calamidades_btn, calamidades_form, grupo_familiar_btn])

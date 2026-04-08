@@ -3,7 +3,7 @@
 import os
 
 # Caminho para o seu arquivo CSV original (usado apenas na criação do DB)
-ARQUIVO_CSV_ORIGINAL = r'C:\Users\Livia\Desktop\calamidades\dados\tab_cad_01032025_27_20250408.csv'
+ARQUIVO_CSV_ORIGINAL = r'dados\tab_cad_01032025_27_20250408.csv'
 
 # Caminho onde o arquivo do banco de dados SQLite será criado/acessado
 # Garante que o DB esteja no mesmo diretório do arquivo CSV original, dentro da pasta 'dados'

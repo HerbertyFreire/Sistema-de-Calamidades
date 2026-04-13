@@ -1,0 +1,5 @@
+dados/*.csv
+dados/cadunico.db
+usuarios.txt
+__pycache__/
+*.pyc
